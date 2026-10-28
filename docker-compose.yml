@@ -1,0 +1,57 @@
+services:
+  app:
+    build: .
+    container_name: lab3_app
+    ports:
+      - "8080:8080"
+    environment:
+      - DB_DSN=postgres://postgres:postgres@postgres:5432/lab3_db?sslmode=disable
+      - REDIS_ADDR=redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: on-failure
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: lab3_postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=lab3_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d lab3_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: lab3_redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  k6:
+    image: grafana/k6:latest
+    container_name: lab3_k6
+    volumes:
+      - ./load.js:/load.js
+    networks:
+      - default
+    profiles:
+      - k6   # chạy riêng: docker compose --profile k6 run k6 run /load.js
+
+volumes:
+  postgres_data:
